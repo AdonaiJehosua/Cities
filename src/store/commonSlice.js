@@ -6,18 +6,23 @@ const headers = {
     'Accept-language': 'en'
 }
 
-const fetchCities = createAsyncThunk(
+export const fetchCities = createAsyncThunk(
     'common/fetchCities',
-    async function (payload, {getState}) {
-        getState().common.inputText = payload
-        const fullUrl = `https://data-api.oxilor.com/rest/search-regions?searchTerm=${payload}&type=city&first=100`
-        console.log('Im here')
-        const response = fetch(fullUrl, {method, headers})
-        const data = response.json()
-        if (!response.ok) {
-            throw new Error(data.message || 'Что-то пошло не так. Попробуйте снова.')
+    async function (_, {dispatch, getState}) {
+        const searchTerm = getState().common.inputText
+        if (searchTerm.length > 2) {
+            const fullUrl = `https://data-api.oxilor.com/rest/search-regions?searchTerm=${searchTerm}&type=city&first=100`
+            const response = await fetch(fullUrl, {method, headers})
+            const data = await response.json()
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Что-то пошло не так. Попробуйте снова.')
+            }
+            dispatch(setFetchedCities(data))
+            if (response.ok) {
+                dispatch(setShowHelper())
+            }
         }
-        return data
     }
 )
 
@@ -28,27 +33,36 @@ const commonSlice = createSlice({
         showHelper: false,
         status: null,
         error: null,
-        loading: false,
         fetchedCities: [],
         cities: []
     },
     reducers: {
         onTextChange(state, action) {
             state.inputText = action.payload
-            console.log(action)
-            console.log(state.inputText)
-            if (state.inputText) {
-                fetchCities(state.inputText)
-            }
+        },
+        setFetchedCities(state, action) {
+          state.fetchedCities = action.payload
+        },
+        setShowHelper(state) {
             state.showHelper = true
         },
-        showHelper(state, action) {
-        },
-        closeHelper(state, action) {
-        },
         addCity(state, action) {
+            const examCity = state.cities.find(e => e.id === action.payload)
+            if (examCity) {
+                state.error = 'Such city already exist'
+            } else {
+                state.error = null
+                const newCity = state.fetchedCities.find(e => e.id === action.payload)
+                state.cities.push(newCity)
+                state.showHelper = false
+                state.fetchedCities = []
+                state.inputText = ''
+            }
+
         },
         removeCity(state, action) {
+            const index = state.cities.findIndex(el => el.id === action.payload)
+            state.cities.splice(index, 1)
         }
 
     },
@@ -57,14 +71,12 @@ const commonSlice = createSlice({
             state.status = 'loading'
             state.error = null
         },
-        [fetchCities.fulfilled]: (state, action) => {
+        [fetchCities.fulfilled]: (state, ) => {
             state.status = 'resolved'
-            state.fetchedCities = action.payload
-        },
-        [fetchCities.rejected]: (state, action) => {}
+        }
     }
 })
 
-export const {onTextChange} = commonSlice.actions
+export const {onTextChange, setFetchedCities, setShowHelper, addCity, removeCity} = commonSlice.actions
 
 export default commonSlice.reducer
